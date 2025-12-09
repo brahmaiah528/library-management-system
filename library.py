@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import re
+import json
 
 st.set_page_config(page_title="Library Management System", layout="wide")
 
@@ -12,27 +13,34 @@ if "logged_in" not in st.session_state:
     st.session_state.user_phone = None
     st.session_state.user_name = None
 
-# Sample Database
-USERS_DB = {
-    "user1@gmail.com": {
-        "password": "pass123",
-        "name": "Raj Kumar",
-        "phone": "9876543210",
-        "borrowed_books": ["B001", "B003"]
-    },
-    "9876543210": {
-        "password": "pass123",
-        "name": "Priya Sharma",
-        "email": "priya@gmail.com",
-        "borrowed_books": ["B002"]
-    },
-    "user2@gmail.com": {
-        "password": "pass456",
-        "name": "Amit Singh",
-        "phone": "9123456789",
-        "borrowed_books": []
+# Initialize Users Database (Persistent in session)
+if "users_db" not in st.session_state:
+    st.session_state.users_db = {
+        "user1@gmail.com": {
+            "password": "pass123",
+            "name": "Raj Kumar",
+            "phone": "9876543210",
+            "borrowed_books": ["B001", "B003"]
+        },
+        "9876543210": {
+            "password": "pass123",
+            "name": "Priya Sharma",
+            "email": "priya@gmail.com",
+            "borrowed_books": ["B002"]
+        },
+        "user2@gmail.com": {
+            "password": "pass456",
+            "name": "Amit Singh",
+            "phone": "9123456789",
+            "borrowed_books": []
+        },
+        "9123456789": {
+            "password": "pass456",
+            "name": "Amit Singh",
+            "email": "user2@gmail.com",
+            "borrowed_books": []
+        }
     }
-}
 
 BOOKS_DB = {
     "B001": {
@@ -94,6 +102,72 @@ def validate_phone(phone):
     """Validate phone number (10 digits)"""
     return re.match(r'^[6-9]\d{9}$', phone)
 
+def validate_password(password):
+    """Validate password (min 6 characters)"""
+    return len(password) >= 6
+
+def signup_page():
+    st.markdown("<h1 style='text-align: center;'>📚 Library Management System</h1>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center;'>Create Your Account</h3>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        st.markdown("---")
+        
+        # Sign Up Form
+        name = st.text_input("👤 Full Name", placeholder="Enter your full name")
+        email = st.text_input("📧 Gmail Address", placeholder="example@gmail.com")
+        phone = st.text_input("📱 Phone Number (10 digits)", placeholder="9876543210")
+        password = st.text_input("🔐 Password", type="password", placeholder="Min 6 characters")
+        confirm_password = st.text_input("🔐 Confirm Password", type="password")
+        
+        if st.button("Create Account", use_container_width=True, type="primary"):
+            # Validation
+            if not name:
+                st.error("❌ Please enter your name")
+            elif not email:
+                st.error("❌ Please enter email")
+            elif not validate_email(email):
+                st.error("❌ Invalid Gmail format (use @gmail.com)")
+            elif email in st.session_state.users_db:
+                st.error("❌ Email already registered")
+            elif not phone:
+                st.error("❌ Please enter phone number")
+            elif not validate_phone(phone):
+                st.error("❌ Invalid phone format (10 digits, starting with 6-9)")
+            elif phone in st.session_state.users_db:
+                st.error("❌ Phone number already registered")
+            elif not password:
+                st.error("❌ Please enter password")
+            elif not validate_password(password):
+                st.error("❌ Password must be at least 6 characters")
+            elif password != confirm_password:
+                st.error("❌ Passwords do not match")
+            else:
+                # Add new user to database
+                st.session_state.users_db[email] = {
+                    "password": password,
+                    "name": name,
+                    "phone": phone,
+                    "borrowed_books": []
+                }
+                st.session_state.users_db[phone] = {
+                    "password": password,
+                    "name": name,
+                    "email": email,
+                    "borrowed_books": []
+                }
+                st.success("✅ Account created successfully! Please login.")
+                st.info("Redirecting to login page...")
+                st.session_state.auth_mode = "login"
+                st.rerun()
+        
+        st.markdown("---")
+        if st.button("Already have an account? Login", use_container_width=True):
+            st.session_state.auth_mode = "login"
+            st.rerun()
+
 def login_page():
     st.markdown("<h1 style='text-align: center;'>📚 Library Management System</h1>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align: center;'>Login to Access Your Account</h3>", unsafe_allow_html=True)
@@ -108,46 +182,51 @@ def login_page():
             email = st.text_input("📧 Enter Gmail Address", placeholder="example@gmail.com")
             password = st.text_input("🔐 Enter Password", type="password")
             
-            if st.button("Login with Gmail", use_container_width=True):
+            if st.button("Login with Gmail", use_container_width=True, type="primary"):
                 if not email:
-                    st.error("Please enter email")
+                    st.error("❌ Please enter email")
                 elif not validate_email(email):
-                    st.error("Invalid Gmail format (use @gmail.com)")
-                elif email not in USERS_DB:
-                    st.error("Email not found in system")
-                elif USERS_DB[email]["password"] != password:
-                    st.error("Invalid password")
+                    st.error("❌ Invalid Gmail format (use @gmail.com)")
+                elif email not in st.session_state.users_db:
+                    st.error("❌ Email not found in system")
+                elif st.session_state.users_db[email]["password"] != password:
+                    st.error("❌ Invalid password")
                 else:
                     st.session_state.logged_in = True
                     st.session_state.user_email = email
-                    st.session_state.user_name = USERS_DB[email]["name"]
-                    st.session_state.user_phone = USERS_DB[email].get("phone", "N/A")
-                    st.success(f"Welcome, {st.session_state.user_name}!")
+                    st.session_state.user_name = st.session_state.users_db[email]["name"]
+                    st.session_state.user_phone = st.session_state.users_db[email].get("phone", "N/A")
+                    st.success(f"✅ Welcome, {st.session_state.user_name}!")
                     st.rerun()
         
         else:  # Phone Number Login
             phone = st.text_input("📱 Enter Phone Number (10 digits)", placeholder="9876543210")
             password = st.text_input("🔐 Enter Password", type="password")
             
-            if st.button("Login with Phone", use_container_width=True):
+            if st.button("Login with Phone", use_container_width=True, type="primary"):
                 if not phone:
-                    st.error("Please enter phone number")
+                    st.error("❌ Please enter phone number")
                 elif not validate_phone(phone):
-                    st.error("Invalid phone format (10 digits, starting with 6-9)")
-                elif phone not in USERS_DB:
-                    st.error("Phone number not registered")
-                elif USERS_DB[phone]["password"] != password:
-                    st.error("Invalid password")
+                    st.error("❌ Invalid phone format (10 digits, starting with 6-9)")
+                elif phone not in st.session_state.users_db:
+                    st.error("❌ Phone number not registered")
+                elif st.session_state.users_db[phone]["password"] != password:
+                    st.error("❌ Invalid password")
                 else:
                     st.session_state.logged_in = True
                     st.session_state.user_phone = phone
-                    st.session_state.user_name = USERS_DB[phone]["name"]
-                    st.session_state.user_email = USERS_DB[phone].get("email", "N/A")
-                    st.success(f"Welcome, {st.session_state.user_name}!")
+                    st.session_state.user_name = st.session_state.users_db[phone]["name"]
+                    st.session_state.user_email = st.session_state.users_db[phone].get("email", "N/A")
+                    st.success(f"✅ Welcome, {st.session_state.user_name}!")
                     st.rerun()
         
         st.markdown("---")
-        st.info("Demo Credentials:\n- Email: user1@gmail.com | Pass: pass123\n- Phone: 9876543210 | Pass: pass123")
+        if st.button("Create new account? Sign Up", use_container_width=True):
+            st.session_state.auth_mode = "signup"
+            st.rerun()
+        
+        st.markdown("---")
+        st.info("📌 Demo Credentials:\n- Email: user1@gmail.com | Pass: pass123\n- Phone: 9876543210 | Pass: pass123")
 
 def dashboard_page():
     col1, col2 = st.columns([3, 1])
@@ -175,8 +254,14 @@ def dashboard_page():
     st.markdown("---")
     
     # Get user's borrowed books
-    user_key = st.session_state.user_email if st.session_state.user_email else st.session_state.user_phone
-    borrowed_book_ids = USERS_DB[user_key].get("borrowed_books", [])
+    if st.session_state.user_email and st.session_state.user_email in st.session_state.users_db:
+        user_key = st.session_state.user_email
+    elif st.session_state.user_phone and st.session_state.user_phone in st.session_state.users_db:
+        user_key = st.session_state.user_phone
+    else:
+        user_key = None
+    
+    borrowed_book_ids = st.session_state.users_db[user_key].get("borrowed_books", []) if user_key else []
     
     # Tabs for navigation
     tab1, tab2 = st.tabs(["📚 My Borrowed Books", "📖 Available Books in Library"])
@@ -185,7 +270,7 @@ def dashboard_page():
         st.subheader("Your Borrowed Books")
         
         if not borrowed_book_ids:
-            st.info("You haven't borrowed any books yet.")
+            st.info("ℹ️ You haven't borrowed any books yet.")
         else:
             borrowed_books_data = []
             for book_id in borrowed_book_ids:
@@ -259,13 +344,6 @@ def dashboard_page():
             df_books = pd.DataFrame(books_data)
             st.dataframe(df_books, use_container_width=True, hide_index=True)
         else:
-            st.warning("No books match your search criteria.")
+            st.warning("⚠️ No books match your search criteria.")
         
         st.markdown("---")
-        st.info(f"Total matching books: {len(books_data)}")
-
-# Main App Logic
-if not st.session_state.logged_in:
-    login_page()
-else:
-    dashboard_page()
