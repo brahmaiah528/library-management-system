@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import re
-import json
 
 st.set_page_config(page_title="Library Management System", layout="wide")
 
@@ -13,7 +12,10 @@ if "logged_in" not in st.session_state:
     st.session_state.user_phone = None
     st.session_state.user_name = None
 
-# Initialize Users Database (Persistent in session)
+if "auth_mode" not in st.session_state:
+    st.session_state.auth_mode = "login"
+
+# Initialize Users Database
 if "users_db" not in st.session_state:
     st.session_state.users_db = {
         "user1@gmail.com": {
@@ -24,21 +26,21 @@ if "users_db" not in st.session_state:
         },
         "9876543210": {
             "password": "pass123",
-            "name": "Priya Sharma",
-            "email": "priya@gmail.com",
-            "borrowed_books": ["B002"]
+            "name": "Raj Kumar",
+            "email": "user1@gmail.com",
+            "borrowed_books": ["B001", "B003"]
         },
         "user2@gmail.com": {
             "password": "pass456",
-            "name": "Amit Singh",
+            "name": "Priya Sharma",
             "phone": "9123456789",
-            "borrowed_books": []
+            "borrowed_books": ["B002"]
         },
         "9123456789": {
             "password": "pass456",
-            "name": "Amit Singh",
+            "name": "Priya Sharma",
             "email": "user2@gmail.com",
-            "borrowed_books": []
+            "borrowed_books": ["B002"]
         }
     }
 
@@ -90,8 +92,46 @@ BOOKS_DB = {
         "quantity": 3,
         "available": 2,
         "category": "Mathematics"
+    },
+    "B007": {
+        "title": "Clean Code",
+        "author": "Robert C. Martin",
+        "isbn": "978-0132350884",
+        "quantity": 4,
+        "available": 3,
+        "category": "Programming"
+    },
+    "B008": {
+        "title": "The Pragmatic Programmer",
+        "author": "David Thomas",
+        "isbn": "978-0201616224",
+        "quantity": 2,
+        "available": 2,
+        "category": "Programming"
     }
 }
+
+def get_library_stats():
+    """Get library statistics"""
+    total_books = len(BOOKS_DB)
+    categories = {}
+    total_quantity = 0
+    total_available = 0
+    
+    for book_id, book in BOOKS_DB.items():
+        category = book["category"]
+        if category not in categories:
+            categories[category] = {"count": 0, "available": 0}
+        categories[category]["count"] += 1
+        total_quantity += book["quantity"]
+        total_available += book["available"]
+    
+    return {
+        "total_books": total_books,
+        "total_quantity": total_quantity,
+        "total_available": total_available,
+        "categories": categories
+    }
 
 def validate_email(email):
     """Validate email format"""
@@ -110,10 +150,36 @@ def signup_page():
     st.markdown("<h1 style='text-align: center;'>📚 Library Management System</h1>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align: center;'>Create Your Account</h3>", unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2 = st.columns([1.5, 2])
+    
+    with col1:
+        st.markdown("---")
+        st.subheader("📖 Library Overview")
+        
+        # Get library statistics
+        stats = get_library_stats()
+        
+        # Display overall stats
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.metric("📚 Total Books", stats["total_books"])
+        with col_b:
+            st.metric("📦 Total Copies", stats["total_quantity"])
+        
+        st.metric("✅ Available Now", stats["total_available"])
+        
+        st.markdown("---")
+        st.subheader("📂 Book Categories")
+        
+        # Display categories
+        for category, data in sorted(stats["categories"].items()):
+            st.write(f"**{category}**")
+            st.write(f"  • Titles: {data['count']}")
+            st.progress(data['count'] / stats['total_books'], text=f"{data['count']} books")
     
     with col2:
         st.markdown("---")
+        st.subheader("🆕 Create New Account")
         
         # Sign Up Form
         name = st.text_input("👤 Full Name", placeholder="Enter your full name")
@@ -122,7 +188,7 @@ def signup_page():
         password = st.text_input("🔐 Password", type="password", placeholder="Min 6 characters")
         confirm_password = st.text_input("🔐 Confirm Password", type="password")
         
-        if st.button("Create Account", use_container_width=True, type="primary"):
+        if st.button("✨ Create Account", use_container_width=True, type="primary"):
             # Validation
             if not name:
                 st.error("❌ Please enter your name")
@@ -158,13 +224,14 @@ def signup_page():
                     "email": email,
                     "borrowed_books": []
                 }
-                st.success("✅ Account created successfully! Please login.")
+                st.success("✅ Account created successfully!")
+                st.info("📌 Credentials saved:\n- **Username (Email):** " + email + "\n- **Phone:** " + phone)
                 st.info("Redirecting to login page...")
                 st.session_state.auth_mode = "login"
                 st.rerun()
         
         st.markdown("---")
-        if st.button("Already have an account? Login", use_container_width=True):
+        if st.button("Already have an account? Login →", use_container_width=True):
             st.session_state.auth_mode = "login"
             st.rerun()
 
@@ -221,7 +288,7 @@ def login_page():
                     st.rerun()
         
         st.markdown("---")
-        if st.button("Create new account? Sign Up", use_container_width=True):
+        if st.button("Create new account? Sign Up →", use_container_width=True):
             st.session_state.auth_mode = "signup"
             st.rerun()
         
@@ -229,20 +296,30 @@ def login_page():
         st.info("📌 Demo Credentials:\n- Email: user1@gmail.com | Pass: pass123\n- Phone: 9876543210 | Pass: pass123")
 
 def dashboard_page():
-    col1, col2 = st.columns([3, 1])
+    col1, col2, col3 = st.columns([2, 1, 1])
     
     with col1:
         st.markdown(f"<h1>Welcome, {st.session_state.user_name}! 👋</h1>", unsafe_allow_html=True)
     
     with col2:
+        if st.button("⚙️ Settings", use_container_width=True):
+            st.session_state.show_settings = True
+    
+    with col3:
         if st.button("🚪 Logout", use_container_width=True):
             st.session_state.logged_in = False
             st.session_state.user_email = None
             st.session_state.user_phone = None
             st.session_state.user_name = None
+            st.session_state.show_settings = False
             st.rerun()
     
     st.markdown("---")
+    
+    # Show settings if requested
+    if st.session_state.get("show_settings", False):
+        profile_settings_page()
+        st.markdown("---")
     
     # User Info
     col1, col2 = st.columns(2)
@@ -264,7 +341,7 @@ def dashboard_page():
     borrowed_book_ids = st.session_state.users_db[user_key].get("borrowed_books", []) if user_key else []
     
     # Tabs for navigation
-    tab1, tab2 = st.tabs(["📚 My Borrowed Books", "📖 Available Books in Library"])
+    tab1, tab2, tab3 = st.tabs(["📚 My Borrowed Books", "📖 Available Books", "📊 Library Stats"])
     
     with tab1:
         st.subheader("Your Borrowed Books")
@@ -275,75 +352,4 @@ def dashboard_page():
             borrowed_books_data = []
             for book_id in borrowed_book_ids:
                 if book_id in BOOKS_DB:
-                    book = BOOKS_DB[book_id]
-                    borrowed_date = datetime.now() - timedelta(days=15)
-                    due_date = borrowed_date + timedelta(days=30)
-                    
-                    borrowed_books_data.append({
-                        "Book ID": book_id,
-                        "Title": book["title"],
-                        "Author": book["author"],
-                        "Category": book["category"],
-                        "ISBN": book["isbn"],
-                        "Borrowed Date": borrowed_date.strftime("%Y-%m-%d"),
-                        "Due Date": due_date.strftime("%Y-%m-%d")
-                    })
-            
-            df_borrowed = pd.DataFrame(borrowed_books_data)
-            st.dataframe(df_borrowed, use_container_width=True, hide_index=True)
-            
-            st.metric("Total Books Borrowed", len(borrowed_book_ids))
-    
-    with tab2:
-        st.subheader("Available Books in Library")
-        
-        # Count available books
-        total_books = len(BOOKS_DB)
-        available_books_count = sum(1 for book in BOOKS_DB.values() if book["available"] > 0)
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("📚 Total Books", total_books)
-        with col2:
-            st.metric("✅ Available", available_books_count)
-        with col3:
-            st.metric("❌ Not Available", total_books - available_books_count)
-        
-        st.markdown("---")
-        
-        # Filter by category
-        categories = ["All"] + sorted(set(book["category"] for book in BOOKS_DB.values()))
-        selected_category = st.selectbox("Filter by Category:", categories)
-        
-        # Search by title
-        search_title = st.text_input("Search by Book Title or Author:")
-        
-        # Build books table
-        books_data = []
-        for book_id, book in BOOKS_DB.items():
-            # Apply filters
-            if selected_category != "All" and book["category"] != selected_category:
-                continue
-            if search_title and search_title.lower() not in book["title"].lower() and search_title.lower() not in book["author"].lower():
-                continue
-            
-            status = "✅ Available" if book["available"] > 0 else "❌ Not Available"
-            
-            books_data.append({
-                "Book ID": book_id,
-                "Title": book["title"],
-                "Author": book["author"],
-                "Category": book["category"],
-                "ISBN": book["isbn"],
-                "Total Copies": book["quantity"],
-                "Available": book["available"],
-                "Status": status
-            })
-        
-        if books_data:
-            df_books = pd.DataFrame(books_data)
-            st.dataframe(df_books, use_container_width=True, hide_index=True)
-        else:
-            st.warning("⚠️ No books match your search criteria.")
-        
-        st.markdown("---")
+                    book = BOOKS_DB
