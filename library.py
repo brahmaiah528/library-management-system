@@ -106,13 +106,21 @@ class LibrarySystem:
                 return book
         return None
 
+    # -----------------------
+    # SEARCH BOOKS WITH PREFIX PRIORITY
+    # -----------------------
     def search_books(self, query):
-        results = []
         query = query.lower()
+        prefix_matches = []
+        other_matches = []
         for book in self.books:
-            if query in book.title.lower() or query in book.author.lower():
-                results.append(book)
-        return results
+            title_lower = book.title.lower()
+            author_lower = book.author.lower()
+            if title_lower.startswith(query) or author_lower.startswith(query):
+                prefix_matches.append(book)
+            elif query in title_lower or query in author_lower:
+                other_matches.append(book)
+        return prefix_matches + other_matches
 
     def add_book(self, title, author, copies, category):
         if category.lower() == "fiction":
