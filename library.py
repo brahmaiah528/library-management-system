@@ -54,6 +54,10 @@ class User:
     def show_my_books(self):
         return self.borrowed_books
 
+    def change_password(self, new_password):
+        self.password = new_password
+        return "Password updated successfully!"
+
 # -----------------------
 # LIBRARY SYSTEM
 # -----------------------
@@ -83,8 +87,8 @@ class LibrarySystem:
             Science("Quantum Physics", "Griffiths", 2),
             History("Cold War", "John Lewis Gaddis", 2)
         ]
-        # Add admin user
-        self.users["admin"] = User("admin", "admin123")  
+        # Admin user
+        self.users["admin"] = User("admin", "admin123")
 
     def register_user(self, phone, password):
         if phone in self.users:
@@ -114,6 +118,23 @@ class LibrarySystem:
         else:
             return "Invalid category!"
         return f"Book '{title}' added successfully!"
+
+    def delete_book(self, title):
+        book = self.find_book(title)
+        if book:
+            self.books.remove(book)
+            return f"Book '{title}' deleted successfully!"
+        else:
+            return "Book not found!"
+
+    def delete_user(self, phone):
+        if phone in self.users and phone != "admin":
+            del self.users[phone]
+            return f"User '{phone}' deleted successfully!"
+        elif phone == "admin":
+            return "Cannot delete admin!"
+        else:
+            return "User not found!"
 
 # ---------------------------------------------
 # STREAMLIT FRONTEND
@@ -156,8 +177,10 @@ else:
     st.subheader(f"Welcome, {user.phone}")
 
     if user.phone == "admin":
-        # Admin Menu
-        menu = st.selectbox("Select Action", ["View Books", "Add Book", "View Users", "Logout"])
+        menu = st.selectbox("Select Action", [
+            "View Books", "Add Book", "Delete Book",
+            "View Users", "Delete User", "Change Password", "Logout"
+        ])
 
         if menu == "View Books":
             st.write("### 📘 All Books")
@@ -174,18 +197,38 @@ else:
                 msg = system.add_book(new_title, new_author, new_copies, new_category)
                 st.success(msg)
 
+        elif menu == "Delete Book":
+            del_book_title = st.text_input("Enter Book Title to Delete", key="del_book")
+            if st.button("Delete Book", key="del_book_btn"):
+                msg = system.delete_book(del_book_title)
+                st.info(msg)
+
         elif menu == "View Users":
             st.write("### 👥 Registered Users & Borrowed Books")
             for u in system.users.values():
                 st.write(f"User: {u.phone}, Borrowed Books: {u.borrowed_books}")
+
+        elif menu == "Delete User":
+            del_user_phone = st.text_input("Enter User Phone to Delete", key="del_user")
+            if st.button("Delete User", key="del_user_btn"):
+                msg = system.delete_user(del_user_phone)
+                st.info(msg)
+
+        elif menu == "Change Password":
+            new_pass = st.text_input("Enter New Password", type="password", key="admin_new_pass")
+            if st.button("Update Password"):
+                msg = user.change_password(new_pass)
+                st.success(msg)
 
         elif menu == "Logout":
             st.session_state.current_user = None
             st.success("Logged out!")
 
     else:
-        # Regular User Menu
-        menu = st.selectbox("Select Action", ["View Books", "Borrow Book", "Return Book", "My Borrowed Books", "Logout"])
+        menu = st.selectbox("Select Action", [
+            "View Books", "Borrow Book", "Return Book",
+            "My Borrowed Books", "Change Password", "Logout"
+        ])
 
         if menu == "View Books":
             st.write("### 📘 Available Books")
@@ -218,6 +261,12 @@ else:
                     st.write("•", x)
             else:
                 st.write("No books taken yet.")
+
+        elif menu == "Change Password":
+            new_pass = st.text_input("Enter New Password", type="password", key="user_new_pass")
+            if st.button("Update Password"):
+                msg = user.change_password(new_pass)
+                st.success(msg)
 
         elif menu == "Logout":
             st.session_state.current_user = None
