@@ -13,7 +13,6 @@ class Book:
     def show_details(self):
         raise NotImplementedError("Subclasses must override this method")
 
-# --- Polymorphic child classes ---
 class Fiction(Book):
     def show_details(self):
         return f"[Fiction] {self.title} by {self.author} | Copies: {self.copies}"
@@ -64,7 +63,6 @@ class User:
 class LibrarySystem:
     def __init__(self):
         self.users = {}
-        # Minimum 20 books
         self.books = [
             Fiction("Harry Potter", "J.K. Rowling", 4),
             Fiction("The Hobbit", "J.R.R. Tolkien", 3),
@@ -108,6 +106,14 @@ class LibrarySystem:
                 return book
         return None
 
+    def search_books(self, query):
+        results = []
+        query = query.lower()
+        for book in self.books:
+            if query in book.title.lower() or query in book.author.lower():
+                results.append(book)
+        return results
+
     def add_book(self, title, author, copies, category):
         if category.lower() == "fiction":
             self.books.append(Fiction(title, author, copies))
@@ -150,7 +156,6 @@ system = st.session_state.system
 
 # ---------- LOGIN / REGISTER PAGE ----------
 if st.session_state.current_user is None:
-
     tab1, tab2 = st.tabs(["Login", "Register"])
 
     with tab1:
@@ -178,14 +183,19 @@ else:
 
     if user.phone == "admin":
         menu = st.selectbox("Select Action", [
-            "View Books", "Add Book", "Delete Book",
+            "View/Search Books", "Add Book", "Delete Book",
             "View Users", "Delete User", "Change Password", "Logout"
         ])
 
-        if menu == "View Books":
+        if menu == "View/Search Books":
             st.write("### 📘 All Books")
-            for b in system.books:
-                st.write(b.show_details())
+            query = st.text_input("Search by title or author", key="admin_search")
+            results = system.search_books(query) if query else system.books
+            if results:
+                for b in results:
+                    st.write(b.show_details())
+            else:
+                st.write("No matching books found.")
 
         elif menu == "Add Book":
             st.write("### ➕ Add New Book")
@@ -226,14 +236,19 @@ else:
 
     else:
         menu = st.selectbox("Select Action", [
-            "View Books", "Borrow Book", "Return Book",
+            "View/Search Books", "Borrow Book", "Return Book",
             "My Borrowed Books", "Change Password", "Logout"
         ])
 
-        if menu == "View Books":
+        if menu == "View/Search Books":
             st.write("### 📘 Available Books")
-            for b in system.books:
-                st.write(b.show_details())
+            query = st.text_input("Search by title or author", key="user_search")
+            results = system.search_books(query) if query else system.books
+            if results:
+                for b in results:
+                    st.write(b.show_details())
+            else:
+                st.write("No matching books found.")
 
         elif menu == "Borrow Book":
             book_name = st.text_input("Enter book name to borrow", key="borrow")
