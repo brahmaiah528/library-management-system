@@ -1,3 +1,5 @@
+import streamlit as st
+
 # ---------------------------------------------
 # LIBRARY MANAGEMENT SYSTEM USING POLYMORPHISM
 # ---------------------------------------------
@@ -12,20 +14,20 @@ class Book:
         raise NotImplementedError("Subclasses must override this method")
 
 
-# --- Polymorphism: Each book type overrides show_details() ---
+# --- Polymorphic child classes ---
 class Fiction(Book):
     def show_details(self):
-        print(f"[Fiction] {self.title} by {self.author} | Copies: {self.copies}")
+        return f"[Fiction] {self.title} by {self.author} | Copies: {self.copies}"
 
 
 class Science(Book):
     def show_details(self):
-        print(f"[Science] {self.title} by {self.author} | Copies: {self.copies}")
+        return f"[Science] {self.title} by {self.author} | Copies: {self.copies}"
 
 
 class History(Book):
     def show_details(self):
-        print(f"[History] {self.title} by {self.author} | Copies: {self.copies}")
+        return f"[History] {self.title} by {self.author} | Copies: {self.copies}"
 
 
 # -----------------------
@@ -40,28 +42,24 @@ class User:
         if book.copies > 0:
             book.copies -= 1
             self.borrowed_books.append(book.title)
-            print(f"Book '{book.title}' issued successfully!")
+            return f"Book '{book.title}' issued successfully!"
         else:
-            print("No copies left!")
+            return "No copies left!"
 
     def return_book(self, book):
         if book.title in self.borrowed_books:
             book.copies += 1
             self.borrowed_books.remove(book.title)
-            print(f"Book '{book.title}' returned.")
+            return f"Book '{book.title}' returned."
         else:
-            print("You didn't take this book!")
+            return "You didn't take this book!"
 
     def show_my_books(self):
-        print("\nBooks taken by user:")
-        for b in self.borrowed_books:
-            print(" -", b)
-        if not self.borrowed_books:
-            print("No books taken yet.")
+        return self.borrowed_books
 
 
 # -----------------------
-# MAIN LIBRARY SYSTEM
+# LIBRARY SYSTEM
 # -----------------------
 class LibrarySystem:
     def __init__(self):
@@ -72,26 +70,17 @@ class LibrarySystem:
             History("World War II", "Stephen Ambrose", 2)
         ]
 
-    def register_user(self):
-        phone = input("Enter phone number to register: ")
+    def register_user(self, phone):
         if phone in self.users:
-            print("User already exists!")
+            return "User already exists!"
         else:
             self.users[phone] = User(phone)
-            print("Registration successful!")
+            return "Registration successful!"
 
-    def login(self):
-        phone = input("Enter phone number to login: ")
+    def login(self, phone):
         if phone not in self.users:
-            print("User not found. Please register first.")
             return None
-        print("Login successful!")
         return self.users[phone]
-
-    def show_all_books(self):
-        print("\n--- Available Books ---")
-        for book in self.books:
-            book.show_details()
 
     def find_book(self, title):
         for book in self.books:
@@ -100,66 +89,81 @@ class LibrarySystem:
         return None
 
 
-# -----------------------
-# RUN SYSTEM
-# -----------------------
-lib = LibrarySystem()
+# ---------------------------------------------
+# STREAMLIT FRONTEND
+# ---------------------------------------------
 
-while True:
-    print("\n--- LIBRARY MENU ---")
-    print("1. Register New User")
-    print("2. Login")
-    print("3. Exit")
-    choice = input("Enter choice: ")
+if "system" not in st.session_state:
+    st.session_state.system = LibrarySystem()
+if "current_user" not in st.session_state:
+    st.session_state.current_user = None
 
-    if choice == "1":
-        lib.register_user()
+st.title("📚 Library Management System (Polymorphism)")
 
-    elif choice == "2":
-        user = lib.login()
-        if user:
-            while True:
-                print("\n--- USER DASHBOARD ---")
-                print("1. View all books")
-                print("2. Take a book")
-                print("3. Return a book")
-                print("4. My borrowed books")
-                print("5. Logout")
+system = st.session_state.system
 
-                c = input("Enter choice: ")
+# ---------- LOGIN / REGISTER PAGE ----------
+if st.session_state.current_user is None:
 
-                if c == "1":
-                    lib.show_all_books()
+    tab1, tab2 = st.tabs(["Login", "Register"])
 
-                elif c == "2":
-                    title = input("Enter book title to borrow: ")
-                    book = lib.find_book(title)
-                    if book:
-                        user.take_book(book)
-                    else:
-                        print("Book not found!")
+    with tab1:
+        phone = st.text_input("Enter Phone Number")
+        if st.button("Login"):
+            user = system.login(phone)
+            if user:
+                st.session_state.current_user = user
+                st.success("Login Successful!")
+            else:
+                st.error("User not found. Please register.")
 
-                elif c == "3":
-                    title = input("Enter book title to return: ")
-                    book = lib.find_book(title)
-                    if book:
-                        user.return_book(book)
-                    else:
-                        print("Book not found!")
+    with tab2:
+        phone_reg = st.text_input("Enter Phone to Register")
+        if st.button("Register"):
+            msg = system.register_user(phone_reg)
+            st.info(msg)
 
-                elif c == "4":
-                    user.show_my_books()
+# ---------- USER DASHBOARD ----------
+else:
+    user = st.session_state.current_user
+    st.subheader(f"Welcome, {user.phone}")
 
-                elif c == "5":
-                    print("Logged out.")
-                    break
+    # View All Books
+    st.write("### 📘 Available Books")
+    for b in system.books:
+        st.write(b.show_details())
 
-                else:
-                    print("Invalid choice!")
+    st.write("---")
 
-    elif choice == "3":
-        print("Thank you for using the Library System!")
-        break
+    # Take book
+    st.write("### 📥 Borrow a Book")
+    book_name = st.text_input("Enter book name to borrow")
+    if st.button("Borrow"):
+        book = system.find_book(book_name)
+        if book:
+            st.success(user.take_book(book))
+        else:
+            st.error("Book not found!")
 
+    # Return book
+    st.write("### 📤 Return a Book")
+    return_book_name = st.text_input("Enter book name to return")
+    if st.button("Return"):
+        book = system.find_book(return_book_name)
+        if book:
+            st.info(user.return_book(book))
+        else:
+            st.error("Book not found!")
+
+    # User borrowed books
+    st.write("### 📚 My Borrowed Books")
+    borrowed = user.show_my_books()
+    if borrowed:
+        for x in borrowed:
+            st.write("•", x)
     else:
-        print("Invalid choice, try again.")
+        st.write("No books taken yet.")
+
+    if st.button("Logout"):
+        st.session_state.current_user = None
+        st.success("Logged out!")
