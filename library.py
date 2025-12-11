@@ -13,29 +13,26 @@ class Book:
     def show_details(self):
         raise NotImplementedError("Subclasses must override this method")
 
-
 # --- Polymorphic child classes ---
 class Fiction(Book):
     def show_details(self):
         return f"[Fiction] {self.title} by {self.author} | Copies: {self.copies}"
 
-
 class Science(Book):
     def show_details(self):
         return f"[Science] {self.title} by {self.author} | Copies: {self.copies}"
-
 
 class History(Book):
     def show_details(self):
         return f"[History] {self.title} by {self.author} | Copies: {self.copies}"
 
-
 # -----------------------
 # USER CLASS
 # -----------------------
 class User:
-    def __init__(self, phone):
+    def __init__(self, phone, password):
         self.phone = phone
+        self.password = password
         self.borrowed_books = []
 
     def take_book(self, book):
@@ -57,30 +54,49 @@ class User:
     def show_my_books(self):
         return self.borrowed_books
 
-
 # -----------------------
 # LIBRARY SYSTEM
 # -----------------------
 class LibrarySystem:
     def __init__(self):
         self.users = {}
+        # Minimum 20 books
         self.books = [
             Fiction("Harry Potter", "J.K. Rowling", 4),
+            Fiction("The Hobbit", "J.R.R. Tolkien", 3),
+            Fiction("Pride and Prejudice", "Jane Austen", 3),
             Science("Physics Fundamentals", "Halliday", 3),
-            History("World War II", "Stephen Ambrose", 2)
+            Science("Chemistry Basics", "Zumdahl", 2),
+            Science("Biology 101", "Campbell", 2),
+            History("World War II", "Stephen Ambrose", 2),
+            History("Ancient Civilizations", "Will Durant", 2),
+            History("Modern History", "Eric Hobsbawm", 2),
+            Fiction("To Kill a Mockingbird", "Harper Lee", 3),
+            Fiction("1984", "George Orwell", 2),
+            Science("Astronomy Today", "Chaisson", 2),
+            Science("Computer Science", "Tanenbaum", 2),
+            History("History of India", "Romila Thapar", 2),
+            Fiction("The Great Gatsby", "F. Scott Fitzgerald", 2),
+            Science("Mathematics for Beginners", "Stewart", 2),
+            History("French Revolution", "Schama", 2),
+            Fiction("Moby Dick", "Herman Melville", 2),
+            Science("Quantum Physics", "Griffiths", 2),
+            History("Cold War", "John Lewis Gaddis", 2)
         ]
+        # Add admin user
+        self.users["admin"] = User("admin", "admin123")  
 
-    def register_user(self, phone):
+    def register_user(self, phone, password):
         if phone in self.users:
             return "User already exists!"
         else:
-            self.users[phone] = User(phone)
+            self.users[phone] = User(phone, password)
             return "Registration successful!"
 
-    def login(self, phone):
-        if phone not in self.users:
-            return None
-        return self.users[phone]
+    def login(self, phone, password):
+        if phone in self.users and self.users[phone].password == password:
+            return self.users[phone]
+        return None
 
     def find_book(self, title):
         for book in self.books:
@@ -88,11 +104,20 @@ class LibrarySystem:
                 return book
         return None
 
+    def add_book(self, title, author, copies, category):
+        if category.lower() == "fiction":
+            self.books.append(Fiction(title, author, copies))
+        elif category.lower() == "science":
+            self.books.append(Science(title, author, copies))
+        elif category.lower() == "history":
+            self.books.append(History(title, author, copies))
+        else:
+            return "Invalid category!"
+        return f"Book '{title}' added successfully!"
 
 # ---------------------------------------------
 # STREAMLIT FRONTEND
 # ---------------------------------------------
-
 if "system" not in st.session_state:
     st.session_state.system = LibrarySystem()
 if "current_user" not in st.session_state:
@@ -108,19 +133,21 @@ if st.session_state.current_user is None:
     tab1, tab2 = st.tabs(["Login", "Register"])
 
     with tab1:
-        phone = st.text_input("Enter Phone Number")
+        phone = st.text_input("Phone Number")
+        password = st.text_input("Password", type="password")
         if st.button("Login"):
-            user = system.login(phone)
+            user = system.login(phone, password)
             if user:
                 st.session_state.current_user = user
                 st.success("Login Successful!")
             else:
-                st.error("User not found. Please register.")
+                st.error("Invalid credentials!")
 
     with tab2:
-        phone_reg = st.text_input("Enter Phone to Register")
+        phone_reg = st.text_input("Phone to Register", key="reg_phone")
+        password_reg = st.text_input("Password", type="password", key="reg_pass")
         if st.button("Register"):
-            msg = system.register_user(phone_reg)
+            msg = system.register_user(phone_reg, password_reg)
             st.info(msg)
 
 # ---------- USER DASHBOARD ----------
@@ -128,42 +155,70 @@ else:
     user = st.session_state.current_user
     st.subheader(f"Welcome, {user.phone}")
 
-    # View All Books
-    st.write("### 📘 Available Books")
-    for b in system.books:
-        st.write(b.show_details())
+    if user.phone == "admin":
+        # Admin Menu
+        menu = st.selectbox("Select Action", ["View Books", "Add Book", "View Users", "Logout"])
 
-    st.write("---")
+        if menu == "View Books":
+            st.write("### 📘 All Books")
+            for b in system.books:
+                st.write(b.show_details())
 
-    # Take book
-    st.write("### 📥 Borrow a Book")
-    book_name = st.text_input("Enter book name to borrow")
-    if st.button("Borrow"):
-        book = system.find_book(book_name)
-        if book:
-            st.success(user.take_book(book))
-        else:
-            st.error("Book not found!")
+        elif menu == "Add Book":
+            st.write("### ➕ Add New Book")
+            new_title = st.text_input("Book Title", key="admin_title")
+            new_author = st.text_input("Author", key="admin_author")
+            new_copies = st.number_input("Copies", min_value=1, step=1, key="admin_copies")
+            new_category = st.selectbox("Category", ["Fiction", "Science", "History"], key="admin_category")
+            if st.button("Add Book", key="admin_add"):
+                msg = system.add_book(new_title, new_author, new_copies, new_category)
+                st.success(msg)
 
-    # Return book
-    st.write("### 📤 Return a Book")
-    return_book_name = st.text_input("Enter book name to return")
-    if st.button("Return"):
-        book = system.find_book(return_book_name)
-        if book:
-            st.info(user.return_book(book))
-        else:
-            st.error("Book not found!")
+        elif menu == "View Users":
+            st.write("### 👥 Registered Users & Borrowed Books")
+            for u in system.users.values():
+                st.write(f"User: {u.phone}, Borrowed Books: {u.borrowed_books}")
 
-    # User borrowed books
-    st.write("### 📚 My Borrowed Books")
-    borrowed = user.show_my_books()
-    if borrowed:
-        for x in borrowed:
-            st.write("•", x)
+        elif menu == "Logout":
+            st.session_state.current_user = None
+            st.success("Logged out!")
+
     else:
-        st.write("No books taken yet.")
+        # Regular User Menu
+        menu = st.selectbox("Select Action", ["View Books", "Borrow Book", "Return Book", "My Borrowed Books", "Logout"])
 
-    if st.button("Logout"):
-        st.session_state.current_user = None
-        st.success("Logged out!")
+        if menu == "View Books":
+            st.write("### 📘 Available Books")
+            for b in system.books:
+                st.write(b.show_details())
+
+        elif menu == "Borrow Book":
+            book_name = st.text_input("Enter book name to borrow", key="borrow")
+            if st.button("Borrow"):
+                book = system.find_book(book_name)
+                if book:
+                    st.success(user.take_book(book))
+                else:
+                    st.error("Book not found!")
+
+        elif menu == "Return Book":
+            return_book_name = st.text_input("Enter book name to return", key="return")
+            if st.button("Return"):
+                book = system.find_book(return_book_name)
+                if book:
+                    st.info(user.return_book(book))
+                else:
+                    st.error("Book not found!")
+
+        elif menu == "My Borrowed Books":
+            borrowed = user.show_my_books()
+            st.write("### 📚 My Borrowed Books")
+            if borrowed:
+                for x in borrowed:
+                    st.write("•", x)
+            else:
+                st.write("No books taken yet.")
+
+        elif menu == "Logout":
+            st.session_state.current_user = None
+            st.success("Logged out!")
